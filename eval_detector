@@ -8,6 +8,7 @@ import click
 import numpy as np
 import pandas as pd
 from nptyping import NDArray, Shape, Int32, Float32
+from tabulate import tabulate
 
 
 AbsoluteNDArrayBoxes = NDArray[Shape['*, [left, top, right, bottom]'], Int32]
@@ -48,6 +49,19 @@ def read_detections_file(filepath: Path, is_ground_truth: bool) -> pd.DataFrame:
     )
 
     return data[['image_name', 'left', 'top', 'right', 'bottom', 'label', 'score']]
+
+
+def get_metrics_by_label_as_dict(label: str, metrics: Dict[str, int]) -> Dict[str, str]:
+    precision: float = metrics['true_positive'] / (metrics['true_positive'] + metrics['false_positive'])
+    recall: float = metrics['true_positive'] / (metrics['true_positive'] + metrics['false_negative'])
+    f1_score: float = 2 * (precision * recall) / (precision + recall)
+
+    return {
+        '': label,
+        'precision': f'{precision:.2f}',
+        'recall': f'{recall:.2f}',
+        'f1_score': f'{f1_score:.2f}',
+    }
 
 
 @click.command()
@@ -98,16 +112,13 @@ def main(g: Path, d: Path, t: float):
         acc_metrics[label]['false_negative'] += len(set(range(len(true_df))) - used_rows)
         acc_metrics[label]['false_positive'] += len(set(range(len(pred_df))) - used_cols)
 
-    for label, metrics in acc_metrics.items():
-        precision: float = metrics['true_positive'] / (metrics['true_positive'] + metrics['false_positive'])
-        recall: float = metrics['true_positive'] / (metrics['true_positive'] + metrics['false_negative'])
-        f1_score: float = 2 * (precision * recall) / (precision + recall)
-
-        print(f'{label}:')
-        print(f'\tPrecision: {precision:.2f}')
-        print(f'\tRecall: {recall:.2f}')
-        print(f'\tF1 score: {f1_score:.2f}')
-        print()
+    click.echo(
+        tabulate(
+            tabular_data=[get_metrics_by_label_as_dict(label, metrics) for label, metrics in acc_metrics.items()],
+            headers='keys',
+            tablefmt='psql',
+        )
+    )
 
 
 if __name__ == '__main__':
