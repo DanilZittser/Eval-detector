@@ -30,5 +30,13 @@ Detection results file format:
 <image file> <bounding box in form L,T,R,B> <object type> <float confidence 0-1>
 ```
 
-
-
+Output example:
+```
++---------+-------------+----------+------------+
+|         |   precision |   recall |   f1_score |
+|---------+-------------+----------+------------|
+| apple   |        0.83 |     0.62 |       0.71 |
+| banana  |        0.56 |     0.5  |       0.53 |
+| coconut |        0.72 |     0.46 |       0.56 |
++---------+-------------+----------+------------+
+```
