@@ -35,6 +35,13 @@ def compute_iou(boxes1: NDArrayBoxes, boxes2: NDArrayBoxes) -> NDArray[Shape['* 
 
 
 def read_detections_file(filepath: Path, is_ground_truth: bool) -> pd.DataFrame:
+    """Reads detections file.
+    Args:
+        filepath: path to ground truth or detections file
+        is_ground_truth: whether the file is ground truth or detections
+    Returns:
+        dataframe with columns [`image_name`, `left`, `top`, `right`, `bottom`, `label`, `score`]
+    """
     columns: List[str] = ['image_name', 'box', 'label'] + (['score'] if not is_ground_truth else [])
     data: pd.DataFrame = pd.read_csv(filepath, sep=' ', header=None, names=columns)
 
@@ -52,6 +59,13 @@ def read_detections_file(filepath: Path, is_ground_truth: bool) -> pd.DataFrame:
 
 
 def get_metrics_by_label_as_dict(label: str, metrics: Dict[str, int]) -> Dict[str, str]:
+    """Returns metrics for a given label as a dictionary.
+    Args:
+        label: label name
+        metrics: dictionary with `true_positive`, `false_positive` and `false_negatives`keys
+    Returns:
+        dictionary with `precision`, `recall` and `f1` keys and corresponding values as strings
+    """
     precision: float = metrics['true_positive'] / (metrics['true_positive'] + metrics['false_positive'])
     recall: float = metrics['true_positive'] / (metrics['true_positive'] + metrics['false_negative'])
     f1_score: float = 2 * (precision * recall) / (precision + recall)
@@ -65,21 +79,21 @@ def get_metrics_by_label_as_dict(label: str, metrics: Dict[str, int]) -> Dict[st
 
 
 @click.command()
-@click.option('-g', type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path), help='Path to ground truth file')
-@click.option('-d', type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path), help='Path to detection results file')
+@click.option('-g', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='Path to ground truth file')
+@click.option('-d', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='Path to detection results file')
 @click.option('-t', type=float, help='Overlap threshold')
 def main(g: Path, d: Path, t: float):
     ground_truth: pd.DataFrame = read_detections_file(g, is_ground_truth=True)
     detection_results: pd.DataFrame = read_detections_file(d, is_ground_truth=False)
 
     acc_metrics: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
-
+    # Iterate over each ground truth objects on each image
     for (image_name, label), true_df in ground_truth.groupby(['image_name', 'label']):
         pred_df: pd.DataFrame = detection_results.query('image_name == @image_name and label == @label')
 
         acc_metrics[label]['total_true'] += len(true_df)
         acc_metrics[label]['total_pred'] += len(pred_df)
-
+        # If there are no predictions for this label, then all ground truth objects are false negatives
         if (len(true_df) > 0) and (len(pred_df) == 0):
             acc_metrics[label]['false_negative'] += len(true_df)
             continue
@@ -95,12 +109,13 @@ def main(g: Path, d: Path, t: float):
         used_rows, used_cols = set(), set()
 
         while True:
+            # Find the best overlap
             argmax_row, argmax_col = np.unravel_index(indices=np.argmax(pairwise_iou), shape=pairwise_iou.shape)
             max_iou: float = pairwise_iou[argmax_row, argmax_col]
-
+            # If best overlap is less than threshold, then there are no more matches
             if max_iou < t:
                 break
-
+            # Mark used rows and columns
             pairwise_iou[argmax_row, :] = float('-inf')
             pairwise_iou[:, argmax_col] = float('-inf')
 
@@ -108,8 +123,9 @@ def main(g: Path, d: Path, t: float):
             used_cols.add(argmax_col)
 
             acc_metrics[label]['true_positive'] += 1
-
+        # All remaining ground truth objects are false negatives
         acc_metrics[label]['false_negative'] += len(set(range(len(true_df))) - used_rows)
+        # All remaining predictions are false positives
         acc_metrics[label]['false_positive'] += len(set(range(len(pred_df))) - used_cols)
 
     click.echo(
