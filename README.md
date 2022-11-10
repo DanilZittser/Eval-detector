@@ -40,3 +40,7 @@ Output example:
 | coconut |        0.72 |     0.46 |       0.56 |
 +---------+-------------+----------+------------+
 ```
+
+### Todo
+- [ ] Add tests
+- [ ] Refactor architecture, divide by domain and service levels
